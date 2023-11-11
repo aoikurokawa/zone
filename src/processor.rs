@@ -5,13 +5,18 @@ use solana_program::{
     msg,
     program::invoke_signed,
     program_error::ProgramError,
+    program_pack::IsInitialized,
     pubkey::Pubkey,
     rent::Rent,
     system_instruction,
     sysvar::Sysvar,
 };
 
-use crate::{instruction::MovieInstruction, state::MovieAccountState, error::ReviewError};
+use crate::{
+    error::ReviewError,
+    instruction::MovieInstruction,
+    state::{MovieAccountState, MovieComment, MovieCommentCounter},
+};
 
 pub fn process_instruction(
     program_id: &Pubkey,
@@ -31,6 +36,7 @@ pub fn process_instruction(
             rating,
             description,
         } => update_movie_review(program_id, accounts, title, rating, description),
+        MovieInstruction::AddComment { comment } => add_comment(program_id, accounts, comment),
     }
 }
 
@@ -50,6 +56,7 @@ pub fn add_movie_review(
 
     let initializer = next_account_info(account_info_iter)?;
     let pda_account = next_account_info(account_info_iter)?;
+    let pda_counter = next_account_info(account_info_iter)?;
     let system_program = next_account_info(account_info_iter)?;
 
     if !initializer.is_signer {
@@ -57,6 +64,7 @@ pub fn add_movie_review(
         return Err(ProgramError::MissingRequiredSignature);
     }
 
+    // account for movie
     let (pda, bump_seed) =
         Pubkey::find_program_address(&[initializer.key.as_ref(), title.as_bytes()], program_id);
 
@@ -70,13 +78,12 @@ pub fn add_movie_review(
         return Err(ReviewError::InvalidRating.into());
     }
 
-    let total_len: usize = 1 + 1 + (4 + title.len()) + (4 + description.len());
+    let account_len = 1000_usize;
+    let total_len = MovieAccountState::get_account_size(&title, &description);
     if total_len > 1000 {
         msg!("Data length is larger than 1000 bytes");
         return Err(ReviewError::InvalidDataLength.into());
     }
-
-    let account_len = 1000_usize;
 
     let rent = Rent::get()?;
     let rent_lamports = rent.minimum_balance(account_len);
@@ -103,11 +110,13 @@ pub fn add_movie_review(
     msg!("borrowed account data");
 
     msg!("checking if movie account is already initialized");
-    if account_data.is_initialized {
+    if account_data.is_initialized() {
         msg!("Account already initialized");
         return Err(ProgramError::AccountAlreadyInitialized);
     }
 
+    account_data.discriminator = MovieAccountState::DISCRIMINATOR.to_string();
+    account_data.reviewer = *initializer.key;
     account_data.title = title;
     account_data.rating = rating;
     account_data.description = description;
@@ -116,6 +125,50 @@ pub fn add_movie_review(
     msg!("serializing account");
     account_data.serialize(&mut &mut pda_account.try_borrow_mut_data()?[..])?;
     msg!("state account serialized");
+
+    // account for comment counter
+    msg!("creating comment counter");
+    let rent = Rent::get()?;
+    let counter_rent_lamports = rent.minimum_balance(MovieCommentCounter::SIZE);
+
+    let (counter, counter_bump) =
+        Pubkey::find_program_address(&[pda.as_ref(), "comment".as_bytes()], program_id);
+    if counter != *pda_counter.key {
+        msg!("Invalid seeds for PDA");
+        return Err(ProgramError::InvalidArgument);
+    }
+
+    invoke_signed(
+        &system_instruction::create_account(
+            initializer.key,
+            pda_counter.key,
+            counter_rent_lamports,
+            MovieCommentCounter::SIZE as u64,
+            program_id,
+        ),
+        &[
+            initializer.clone(),
+            pda_counter.clone(),
+            system_program.clone(),
+        ],
+        &[&[pda.as_ref(), "comment".as_bytes(), &[counter_bump]]],
+    )?;
+    msg!("comment counter created");
+
+    let mut counter_data: MovieCommentCounter =
+        my_try_from_slice_unchecked(&pda_counter.try_borrow_mut_data()?[..])?;
+
+    msg!("checking if counter is already initialized");
+    if counter_data.is_initialized() {
+        msg!("Account already initialized");
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    counter_data.discriminator = MovieCommentCounter::DISCRIMINATOR.to_string();
+    counter_data.counter = 0;
+    counter_data.is_initialized = true;
+    msg!("comment count: {}", counter_data.counter);
+    counter_data.serialize(&mut &mut pda_counter.try_borrow_mut_data()?[..])?;
 
     Ok(())
 }
@@ -168,7 +221,7 @@ pub fn update_movie_review(
         return Err(ProgramError::AccountAlreadyInitialized);
     }
 
-    let total_len: usize = 1 + 1 + (4 + title.len()) + (4 + description.len());
+    let total_len: usize = MovieAccountState::get_account_size(&title, &description);
     if total_len > 1000 {
         msg!("Data length is larger than 1000 bytes");
         return Err(ReviewError::InvalidDataLength.into());
@@ -181,6 +234,14 @@ pub fn update_movie_review(
     account_data.serialize(&mut &mut pda_account.try_borrow_mut_data()?[..])?;
     msg!("state account serialized");
 
+    Ok(())
+}
+
+pub fn add_comment(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    comment: String,
+) -> ProgramResult {
     Ok(())
 }
 

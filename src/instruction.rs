@@ -11,7 +11,10 @@ pub enum MovieInstruction {
         title: String,
         rating: u8,
         description: String,
-    }
+    },
+    AddComment {
+        comment: String,
+    },
 }
 
 impl MovieInstruction {
@@ -19,19 +22,30 @@ impl MovieInstruction {
         let (&variant, rest) = input
             .split_first()
             .ok_or(ProgramError::InvalidInstructionData)?;
-        let payload = MovieReviwPayload::try_from_slice(rest)?;
 
         Ok(match variant {
-            0 => Self::AddMovieReview {
-                title: payload.title,
-                rating: payload.rating,
-                description: payload.description,
-            },
-            1 => Self::UpdateMovieReview {
-                title: payload.title,
-                rating: payload.rating,
-                description: payload.description,
-            },
+            0 => {
+                let payload = MovieReviwPayload::try_from_slice(rest)?;
+                Self::AddMovieReview {
+                    title: payload.title,
+                    rating: payload.rating,
+                    description: payload.description,
+                }
+            }
+            1 => {
+                let payload = MovieReviwPayload::try_from_slice(rest)?;
+                Self::UpdateMovieReview {
+                    title: payload.title,
+                    rating: payload.rating,
+                    description: payload.description,
+                }
+            }
+            2 => {
+                let payload = CommentPayload::try_from_slice(rest)?;
+                Self::AddComment {
+                    comment: payload.comment,
+                }
+            }
             _ => return Err(ProgramError::InvalidInstructionData),
         })
     }
@@ -42,4 +56,9 @@ struct MovieReviwPayload {
     title: String,
     rating: u8,
     description: String,
+}
+
+#[derive(BorshDeserialize)]
+struct CommentPayload {
+    comment: String,
 }
