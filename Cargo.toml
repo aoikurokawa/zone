@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 borsh = "0.9.3" 
 solana-program = "1.17.4"
+thiserror = "1.0.50"
 
 [lib]
 crate-type = ["cdylib", "lib"]
