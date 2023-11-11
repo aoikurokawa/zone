@@ -242,6 +242,79 @@ pub fn add_comment(
     accounts: &[AccountInfo],
     comment: String,
 ) -> ProgramResult {
+    msg!("Adding Comment...");
+    msg!("Comment: {}", comment);
+
+    let mut account_info_iter = accounts.iter();
+
+    let commenter = next_account_info(&mut account_info_iter)?;
+    let pda_review = next_account_info(&mut account_info_iter)?;
+    let pda_counter = next_account_info(&mut account_info_iter)?;
+    let pda_comment = next_account_info(&mut account_info_iter)?;
+    let system_program = next_account_info(&mut account_info_iter)?;
+
+    let mut counter_data: MovieCommentCounter =
+        my_try_from_slice_unchecked(&pda_counter.try_borrow_mut_data()?[..])?;
+
+    let account_len = MovieComment::get_account_size(&comment);
+
+    let rent = Rent::get()?;
+    let rent_lamports = rent.minimum_balance(account_len);
+
+    let (pda, bump_seed) = Pubkey::find_program_address(
+        &[
+            pda_review.key.as_ref(),
+            counter_data.counter.to_be_bytes().as_ref(),
+        ],
+        program_id,
+    );
+    if pda != *pda_comment.key {
+        msg!("Invlaid seeds for PDA");
+        return Err(ReviewError::InvalidPDA.into());
+    }
+
+    invoke_signed(
+        &system_instruction::create_account(
+            commenter.key,
+            pda_comment.key,
+            rent_lamports,
+            account_len as u64,
+            program_id,
+        ),
+        &[
+            commenter.clone(),
+            pda_comment.clone(),
+            system_program.clone(),
+        ],
+        &[&[
+            pda_review.key.as_ref(),
+            counter_data.counter.to_be_bytes().as_ref(),
+            &[bump_seed],
+        ]],
+    )?;
+
+    msg!("created comment account");
+
+    let mut comment_data: MovieComment =
+        my_try_from_slice_unchecked(&pda_comment.try_borrow_mut_data()?[..])?;
+
+    msg!("checking if comment account is already initialized");
+    if comment_data.is_initialized() {
+        msg!("Account already initialized");
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    comment_data.discriminator = MovieComment::DISCRIMINATOR.to_string();
+    comment_data.review = *pda_review.key;
+    comment_data.commenter = *commenter.key;
+    comment_data.comment = comment;
+    comment_data.is_initialized = true;
+    comment_data.serialize(&mut &mut pda_comment.try_borrow_mut_data()?[..])?;
+
+    msg!("Comment Count: {}", counter_data.counter);
+    counter_data.counter += 1;
+    counter_data.serialize(&mut &mut pda_counter.try_borrow_mut_data()?[..])?;
+
     Ok(())
 }
 

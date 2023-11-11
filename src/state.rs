@@ -54,7 +54,7 @@ impl IsInitialized for MovieCommentCounter {
 
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct MovieComment {
-    pub dscriminator: String,
+    pub discriminator: String,
     pub is_initialized: bool,
     pub review: Pubkey,
     pub commenter: Pubkey,
@@ -65,7 +65,7 @@ pub struct MovieComment {
 impl MovieComment {
     pub const DISCRIMINATOR: &'static str = "comment";
 
-    pub fn get_account_size(comment: String) -> usize {
+    pub fn get_account_size(comment: &str) -> usize {
         (4 + Self::DISCRIMINATOR.len()) + 1 + 32 + 32 + (4 + comment.len()) + 8
     }
 }
