@@ -6,46 +6,116 @@ declare_id!("FuF87VDgECo9tETuve2obCmt38r7EZM2HC34D8ePo6fz");
 pub mod zone {
     use super::*;
 
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        let counter = &mut ctx.accounts.counter;
-        counter.count = 0;
-        msg!("counter Account Created");
-        msg!("Current Count: {}", counter.count);
+    pub fn add_movie_review(
+        ctx: Context<AddMovieReview>,
+        title: String,
+        description: String,
+        rating: u8,
+    ) -> Result<()> {
+        msg!("Movie Review Account Created");
+        msg!("Title: {}", title);
+        msg!("Description: {}", description);
+        msg!("Rating: {}", rating);
+
+        let movie_review = &mut ctx.accounts.movie_review;
+        movie_review.reviewer = ctx.accounts.initializer.key();
+        movie_review.rating = rating;
+        movie_review.title = title;
+        movie_review.description = description;
+
         Ok(())
     }
 
-    pub fn increment(ctx: Context<Update>) -> Result<()> {
-        let counter = &mut ctx.accounts.counter;
-        msg!("Previous counter: {:?}", counter);
+    pub fn update_movie_review(
+        ctx: Context<UpdateMovieReview>,
+        title: String,
+        description: String,
+        rating: u8,
+    ) -> Result<()> {
+        msg!("Movie review account space reallocated!");
+        msg!("Title: {}", title);
+        msg!("Description: {}", description);
+        msg!("Rating: {}", rating);
 
-        counter.count = counter.count.checked_add(1).unwrap();
-        msg!("Counter incremented. Current count: {:?}", counter.count);
+        let movie_review = &mut ctx.accounts.movie_review;
+        movie_review.rating = rating;
+        movie_review.description = description;
+
+        Ok(())
+    }
+
+    pub fn delete_movie_review(_ctx: Context<DeleteMovieReview>, title: String) -> Result<()> {
+        msg!("Movie review for {} deleted", title);
 
         Ok(())
     }
 }
 
 #[derive(Accounts)]
-pub struct Initialize<'info> {
-    #[account(init, payer = user, space = 8 + 8)]
-    pub counter: Account<'info, Counter>,
+#[instruction(title: String, description: String)]
+pub struct AddMovieReview<'info> {
+    #[account(
+        init,
+        seeds = [title.as_bytes(), initializer.key.as_ref()],
+        bump,
+        payer = initializer,
+        space = 8 + 32 + 1 + 4 + title.len() + 4 + description.len(),
+    )]
+    pub movie_review: Account<'info, MovieAccountState>,
 
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub initializer: Signer<'info>,
 
     pub system_program: Program<'info, System>,
 }
 
-#[derive(Accounts, Debug)]
-pub struct Update<'info> {
-    #[account(mut)]
-    pub counter: Account<'info, Counter>,
+#[derive(Accounts)]
+#[instruction(title: String, description: String)]
+pub struct UpdateMovieReview<'info> {
+    #[account(
+        mut,
+        seeds = [title.as_bytes(), initializer.key.as_ref()],
+        bump,
+        realloc = 8 + 32 + 1 + 4 + title.len() + 4 + description.len(),
+        realloc::payer = initializer,
+        realloc::zero = true
+    )]
+    pub movie_review: Account<'info, MovieAccountState>,
 
-    pub user: Signer<'info>,
+    #[account(mut)]
+    pub initializer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
-#[derive(Debug)]
+#[derive(Accounts)]
+#[instruction(title: String)]
+pub struct DeleteMovieReview<'info> {
+    #[account(
+        mut,
+        seeds = [title.as_bytes(), initializer.key.as_ref()],
+        bump,
+        close = initializer,
+    )]
+    pub movie_review: Account<'info, MovieAccountState>,
+
+    #[account(mut)]
+    pub initializer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 #[account]
-pub struct Counter {
-    count: u64,
+pub struct MovieAccountState {
+    // 32
+    pub reviewer: Pubkey,
+
+    // 1
+    pub rating: u8,
+
+    // 4 + len()
+    pub title: String,
+
+    // 4 + len()
+    pub description: String,
 }
