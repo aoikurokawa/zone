@@ -1,200 +1,145 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
 };
 
 declare_id!("FuF87VDgECo9tETuve2obCmt38r7EZM2HC34D8ePo6fz");
 
+pub mod constants {
+    pub const VAULT_SEED: &[u8] = b"vault";
+    pub const STAKE_INFO_SEED: &[u8] = b"stake_info";
+    pub const TOKEN_SEED: &[u8] = b"token";
+}
+
 #[program]
 pub mod zone {
-    use anchor_spl::token::{mint_to, MintTo};
-
     use super::*;
 
-    pub fn initialize_token_mint(_ctx: Context<InitializeMint>) -> Result<()> {
-        msg!("Token mint initialized");
+    pub fn initialize(_ctx: Context<Initialize>) -> Result<()> {
         Ok(())
     }
 
-    pub fn add_movie_review(
-        ctx: Context<AddMovieReview>,
-        title: String,
-        description: String,
-        rating: u8,
-    ) -> Result<()> {
-        msg!("Movie Review Account Created");
-        msg!("Title: {}", title);
-        msg!("Description: {}", description);
-        msg!("Rating: {}", rating);
+    pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
+        let stake_info = &mut ctx.accounts.stake_info;
 
-        require!(rating >= 1 && rating <= 5, MovieReviewError::InvalidRating);
+        if stake_info.is_staked {
+            return Err(ErrorCode::IsStaked.into());
+        }
 
-        let movie_review = &mut ctx.accounts.movie_review;
-        movie_review.reviewer = ctx.accounts.initializer.key();
-        movie_review.rating = rating;
-        movie_review.title = title;
-        movie_review.description = description;
+        if amount <= 0 {
+            return Err(ErrorCode::NoTokens.into());
+        }
 
-        mint_to(
-            CpiContext::new_with_signer(
+        let clock = Clock::get()?;
+
+        stake_info.stake_at_slot = clock.slot;
+        stake_info.is_staked = true;
+
+        let stake_amount = if let Some(amount) =
+            amount.checked_mul(10u64.pow(ctx.accounts.mint.decimals as u32))
+        {
+            amount
+        } else {
+            0
+        };
+
+        transfer(
+            CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
-                MintTo {
-                    authority: ctx.accounts.mint.to_account_info(),
-                    to: ctx.accounts.token_account.to_account_info(),
-                    mint: ctx.accounts.mint.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.user_token_account.to_account_info(),
+                    to: ctx.accounts.stake_account.to_account_info(),
+                    authority: ctx.accounts.signer.to_account_info(),
                 },
-                &[&["mint".as_bytes(), &[ctx.bumps.mint]]],
             ),
-            10 * 10 ^ 6,
+            stake_amount,
         )?;
 
-        msg!("Minted tokens");
-
         Ok(())
     }
 
-    pub fn update_movie_review(
-        ctx: Context<UpdateMovieReview>,
-        title: String,
-        description: String,
-        rating: u8,
-    ) -> Result<()> {
-        msg!("Movie review account space reallocated!");
-        msg!("Title: {}", title);
-        msg!("Description: {}", description);
-        msg!("Rating: {}", rating);
-
-        require!(rating >= 1 && rating <= 5, MovieReviewError::InvalidRating);
-
-        let movie_review = &mut ctx.accounts.movie_review;
-        movie_review.rating = rating;
-        movie_review.description = description;
-
-        Ok(())
-    }
-
-    pub fn delete_movie_review(_ctx: Context<DeleteMovieReview>, title: String) -> Result<()> {
-        msg!("Movie review for {} deleted", title);
-
+    pub fn destake(_ctx: Context<Initialize>) -> Result<()> {
         Ok(())
     }
 }
 
 #[derive(Accounts)]
-pub struct InitializeMint<'info> {
+pub struct Initialize<'info> {
     #[account(
-        init,
-        seeds = ["mint".as_bytes()],
+        init_if_needed,
+        seeds = [constants::VAULT_SEED],
         bump,
-        payer = user,
-        mint::decimals = 6,
-        mint::authority = mint,
+        payer = signer,
+        token::mint = mint,
+        token::authority = token_vault_account,
     )]
-    pub mint: Account<'info, Mint>,
+    pub token_vault_account: Account<'info, TokenAccount>,
 
     #[account(mut)]
-    pub user: Signer<'info>,
+    pub signer: Signer<'info>,
+
+    pub mint: Account<'info, Mint>,
 
     pub token_program: Program<'info, Token>,
-
-    pub rent: Sysvar<'info, Rent>,
 
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-#[instruction(title: String, description: String)]
-pub struct AddMovieReview<'info> {
-    #[account(
-        init,
-        seeds = [title.as_bytes(), initializer.key.as_ref()],
-        bump,
-        payer = initializer,
-        space = 8 + 32 + 1 + 4 + title.len() + 4 + description.len(),
-    )]
-    pub movie_review: Account<'info, MovieAccountState>,
-
+pub struct Stake<'info> {
     #[account(mut)]
-    pub initializer: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-
-    pub token_program: Program<'info, Token>,
-
-    #[account(
-        seeds = ["mint".as_bytes()],
-        bump,
-        mut
-    )]
-    pub mint: Account<'info, Mint>,
+    pub signer: Signer<'info>,
 
     #[account(
         init_if_needed,
-        payer = initializer,
+        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref()],
+        bump,
+        payer = signer,
+        space = 8 + std::mem::size_of::<StakeInfo>(),
+    )]
+    pub stake_info: Account<'info, StakeInfo>,
+
+    #[account(
+        init_if_needed,
+        seeds = [constants::TOKEN_SEED, signer.key.as_ref()],
+        bump,
+        payer = signer,
+        token::mint = mint,
+        token::authority = stake_account,
+    )]
+    pub stake_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
         associated_token::mint = mint,
-        associated_token::authority = initializer,
+        associated_token::authority = signer,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Account<'info, TokenAccount>,
 
+    pub mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-
-    pub rent: Sysvar<'info, Rent>,
-}
-
-#[derive(Accounts)]
-#[instruction(title: String, description: String)]
-pub struct UpdateMovieReview<'info> {
-    #[account(
-        mut,
-        seeds = [title.as_bytes(), initializer.key.as_ref()],
-        bump,
-        realloc = 8 + 32 + 1 + 4 + title.len() + 4 + description.len(),
-        realloc::payer = initializer,
-        realloc::zero = true
-    )]
-    pub movie_review: Account<'info, MovieAccountState>,
-
-    #[account(mut)]
-    pub initializer: Signer<'info>,
-
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-#[instruction(title: String)]
-pub struct DeleteMovieReview<'info> {
-    #[account(
-        mut,
-        seeds = [title.as_bytes(), initializer.key.as_ref()],
-        bump,
-        close = initializer,
-    )]
-    pub movie_review: Account<'info, MovieAccountState>,
-
-    #[account(mut)]
-    pub initializer: Signer<'info>,
-
     pub system_program: Program<'info, System>,
 }
 
 #[account]
-pub struct MovieAccountState {
-    // 32
-    pub reviewer: Pubkey,
+pub struct StakeInfo {
+    // 8
+    pub stake_at_slot: u64,
 
     // 1
-    pub rating: u8,
-
-    // 4 + len()
-    pub title: String,
-
-    // 4 + len()
-    pub description: String,
+    pub is_staked: bool,
 }
 
 #[error_code]
-enum MovieReviewError {
-    #[msg("Rating must be between 1 and 5")]
-    InvalidRating,
+pub enum ErrorCode {
+    #[msg("Tokens are already staked")]
+    IsStaked,
+
+    #[msg("Tokens not staked")]
+    NotStaked,
+
+    #[msg("No Tokens to stake")]
+    NoTokens,
 }
