@@ -59,7 +59,62 @@ pub mod zone {
         Ok(())
     }
 
-    pub fn destake(_ctx: Context<Initialize>) -> Result<()> {
+    pub fn destake(ctx: Context<DeStake>) -> Result<()> {
+        let stake_info = &mut ctx.accounts.stake_info;
+
+        if !stake_info.is_staked {
+            return Err(ErrorCode::NotStaked.into());
+        }
+
+        let clock = Clock::get()?;
+        let slot_passed = clock.slot - stake_info.stake_at_slot;
+
+        let stake_amount = ctx.accounts.stake_account.amount;
+
+        let reward = if let Some(num) =
+            slot_passed.checked_mul(10u64.pow(ctx.accounts.mint.decimals as u32))
+        {
+            num
+        } else {
+            0
+        };
+
+        let bump = ctx.bumps.token_vault_account;
+        let signer: &[&[&[u8]]] = &[&[constants::VAULT_SEED, &[bump]]];
+
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.token_vault_account.to_account_info(),
+                    to: ctx.accounts.user_token_account.to_account_info(),
+                    authority: ctx.accounts.token_vault_account.to_account_info(),
+                },
+                signer,
+            ),
+            reward,
+        )?;
+
+        let staker = ctx.accounts.signer.key();
+        let bump = ctx.bumps.stake_account;
+        let signer: &[&[&[u8]]] = &[&[constants::TOKEN_SEED, staker.as_ref(), &[bump]]];
+
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.stake_account.to_account_info(),
+                    to: ctx.accounts.user_token_account.to_account_info(),
+                    authority: ctx.accounts.stake_account.to_account_info(),
+                },
+                signer,
+            ),
+            stake_amount,
+        )?;
+
+        stake_info.is_staked = false;
+        stake_info.stake_at_slot = clock.slot;
+
         Ok(())
     }
 }
@@ -107,6 +162,45 @@ pub struct Stake<'info> {
         payer = signer,
         token::mint = mint,
         token::authority = stake_account,
+    )]
+    pub stake_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+    )]
+    pub user_token_account: Account<'info, TokenAccount>,
+
+    pub mint: Account<'info, Mint>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct DeStake<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [constants::VAULT_SEED],
+        bump
+    )]
+    pub token_vault_account: Account<'info, TokenAccount>,
+
+    #[account(
+        mut,
+        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref()],
+        bump,
+    )]
+    pub stake_info: Account<'info, StakeInfo>,
+
+    #[account(
+        mut,
+        seeds = [constants::TOKEN_SEED, signer.key.as_ref()],
+        bump
     )]
     pub stake_account: Account<'info, TokenAccount>,
 
