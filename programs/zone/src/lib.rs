@@ -59,6 +59,13 @@ pub mod zone {
         Ok(())
     }
 
+    pub fn initialize_market(ctx: Context<InitializeMarket>) -> Result<()> {
+        let market = &mut ctx.accounts.market;
+        market.authority = ctx.accounts.authority.key();
+
+        Ok(())
+    }
+
     pub fn destake(ctx: Context<DeStake>) -> Result<()> {
         let stake_info = &mut ctx.accounts.stake_info;
 
@@ -142,6 +149,17 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
+pub struct InitializeMarket<'info> {
+    #[account(init, payer = authority, space = 8 + 32 + 1)]
+    market: Account<'info, Market>,
+
+    #[account(mut)]
+    authority: Signer<'info>,
+
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct Stake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -215,6 +233,11 @@ pub struct DeStake<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+}
+
+#[account]
+struct Market {
+    authority: Pubkey,
 }
 
 #[account]
