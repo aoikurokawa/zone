@@ -59,9 +59,21 @@ pub mod zone {
         Ok(())
     }
 
-    pub fn initialize_market(ctx: Context<InitializeMarket>) -> Result<()> {
+    pub fn initialize_market(ctx: Context<InitializeMarket>, token_account: Pubkey) -> Result<()> {
         let market = &mut ctx.accounts.market;
+
         market.authority = ctx.accounts.authority.key();
+        market.token_account = token_account;
+
+        Ok(())
+    }
+
+    pub fn start_market(ctx: Context<StartMarket>, end: i64) -> Result<()> {
+        let market = &mut ctx.accounts.market;
+        let clock = Clock::get()?;
+
+        market.start = clock.unix_timestamp;
+        market.end = end;
 
         Ok(())
     }
@@ -160,6 +172,12 @@ pub struct InitializeMarket<'info> {
 }
 
 #[derive(Accounts)]
+pub struct StartMarket<'info> {
+    #[account()]
+    market: Account<'info, Market>,
+}
+
+#[derive(Accounts)]
 pub struct Stake<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
@@ -238,7 +256,13 @@ pub struct DeStake<'info> {
 #[account]
 struct Market {
     authority: Pubkey,
+    token_account: Pubkey,
+    start: i64,
+    end: i64,
 }
+
+#[account]
+struct Prediction {}
 
 #[account]
 pub struct StakeInfo {
