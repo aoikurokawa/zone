@@ -1,8 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{transfer, Mint, Token, TokenAccount, Transfer},
-};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 
 declare_id!("FuF87VDgECo9tETuve2obCmt38r7EZM2HC34D8ePo6fz");
 
@@ -14,61 +11,33 @@ pub mod constants {
 
 #[program]
 pub mod zone {
-    use super::*;
+    use anchor_lang::{context::Context, Key, ToAccountInfo};
+    use solana_program::{clock::Clock, pubkey::Pubkey, sysvar::Sysvar};
 
-    pub fn initialize(_ctx: Context<Initialize>) -> Result<()> {
+    use crate::{
+        CreatePrediction, Initialize, InitializeMarket, SettlePrediction, StartMarket,
+        ZoneErrorCode,
+    };
+
+    pub fn initialize(_ctx: Context<Initialize>) -> anchor_lang::Result<()> {
         Ok(())
     }
 
-    pub fn stake(ctx: Context<Stake>, amount: u64) -> Result<()> {
-        let stake_info = &mut ctx.accounts.stake_info;
-
-        if stake_info.is_staked {
-            return Err(ErrorCode::IsStaked.into());
-        }
-
-        if amount <= 0 {
-            return Err(ErrorCode::NoTokens.into());
-        }
-
-        let clock = Clock::get()?;
-
-        stake_info.stake_at_slot = clock.slot;
-        stake_info.is_staked = true;
-
-        let stake_amount = if let Some(amount) =
-            amount.checked_mul(10u64.pow(ctx.accounts.mint.decimals as u32))
-        {
-            amount
-        } else {
-            0
-        };
-
-        transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.user_token_account.to_account_info(),
-                    to: ctx.accounts.stake_account.to_account_info(),
-                    authority: ctx.accounts.signer.to_account_info(),
-                },
-            ),
-            stake_amount,
-        )?;
-
-        Ok(())
-    }
-
-    pub fn initialize_market(ctx: Context<InitializeMarket>, token_account: Pubkey) -> Result<()> {
+    pub fn initialize_market(
+        ctx: Context<InitializeMarket>,
+        token_account: Pubkey,
+        payout_multiplier: u64,
+    ) -> anchor_lang::Result<()> {
         let market = &mut ctx.accounts.market;
 
         market.authority = ctx.accounts.authority.key();
         market.token_account = token_account;
+        market.payout_multiplier = payout_multiplier;
 
         Ok(())
     }
 
-    pub fn start_market(ctx: Context<StartMarket>, end: i64) -> Result<()> {
+    pub fn start_market(ctx: Context<StartMarket>, end: i64) -> anchor_lang::Result<()> {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
@@ -78,61 +47,75 @@ pub mod zone {
         Ok(())
     }
 
-    pub fn destake(ctx: Context<DeStake>) -> Result<()> {
-        let stake_info = &mut ctx.accounts.stake_info;
+    pub fn create_prediction(
+        ctx: Context<CreatePrediction>,
+        prediction: bool,
+        amount: u64,
+        current_price: u64,
+    ) -> anchor_lang::Result<()> {
+        let market = &mut ctx.accounts.market;
+        let clock = Clock::get()?;
 
-        if !stake_info.is_staked {
-            return Err(ErrorCode::NotStaked.into());
+        if market.start < clock.unix_timestamp {
+            return Err(ZoneErrorCode::NotStarted.into());
         }
 
+        let new_prediction = &mut ctx.accounts.prediction;
+        new_prediction.user = ctx.accounts.user.key();
+        new_prediction.market = ctx.accounts.market.key();
+        new_prediction.prediction = prediction;
+        new_prediction.amount = amount;
+        new_prediction.market_price = current_price;
+
+        let transfer_sol = anchor_lang::solana_program::system_instruction::transfer(
+            &new_prediction.user,
+            &new_prediction.market,
+            amount,
+        );
+
+        anchor_lang::solana_program::program::invoke(
+            &transfer_sol,
+            &[
+                ctx.accounts.user.to_account_info(),
+                ctx.accounts.market.to_account_info(),
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn settle_prediction(
+        ctx: Context<SettlePrediction>,
+        actual_price: u64,
+    ) -> anchor_lang::Result<()> {
+        let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
-        let slot_passed = clock.slot - stake_info.stake_at_slot;
 
-        let stake_amount = ctx.accounts.stake_account.amount;
-
-        let reward = if let Some(num) =
-            slot_passed.checked_mul(10u64.pow(ctx.accounts.mint.decimals as u32))
-        {
-            num
+        if market.end < clock.unix_timestamp {
+            return Err(ZoneErrorCode::NotFinished.into());
         } else {
-            0
-        };
+            let prediction = &mut ctx.accounts.prediction;
+            let reward = (prediction.amount * market.payout_multiplier) / 100;
 
-        let bump = ctx.bumps.token_vault_account;
-        let signer: &[&[&[u8]]] = &[&[constants::VAULT_SEED, &[bump]]];
+            let (from, to) = if (actual_price > prediction.market_price && prediction.prediction)
+                || (actual_price < prediction.market_price && !prediction.prediction)
+            {
+                (prediction.market, prediction.user)
+            } else {
+                (prediction.user, prediction.market)
+            };
 
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.token_vault_account.to_account_info(),
-                    to: ctx.accounts.user_token_account.to_account_info(),
-                    authority: ctx.accounts.token_vault_account.to_account_info(),
-                },
-                signer,
-            ),
-            reward,
-        )?;
+            let transfer_sol =
+                anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
 
-        let staker = ctx.accounts.signer.key();
-        let bump = ctx.bumps.stake_account;
-        let signer: &[&[&[u8]]] = &[&[constants::TOKEN_SEED, staker.as_ref(), &[bump]]];
-
-        transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.stake_account.to_account_info(),
-                    to: ctx.accounts.user_token_account.to_account_info(),
-                    authority: ctx.accounts.stake_account.to_account_info(),
-                },
-                signer,
-            ),
-            stake_amount,
-        )?;
-
-        stake_info.is_staked = false;
-        stake_info.stake_at_slot = clock.slot;
+            anchor_lang::solana_program::program::invoke(
+                &transfer_sol,
+                &[
+                    ctx.accounts.user.to_account_info(),
+                    ctx.accounts.market.to_account_info(),
+                ],
+            )?;
+        }
 
         Ok(())
     }
@@ -162,7 +145,7 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct InitializeMarket<'info> {
-    #[account(init, payer = authority, space = 8 + 32 + 1)]
+    #[account(init, payer = authority, space = 8 + std::mem::size_of::<Market>())]
     market: Account<'info, Market>,
 
     #[account(mut)]
@@ -173,108 +156,56 @@ pub struct InitializeMarket<'info> {
 
 #[derive(Accounts)]
 pub struct StartMarket<'info> {
-    #[account()]
+    #[account(mut)]
     market: Account<'info, Market>,
 }
 
 #[derive(Accounts)]
-pub struct Stake<'info> {
+pub struct CreatePrediction<'info> {
+    #[account(init_if_needed, payer = user, space = 8 + std::mem::size_of::<Prediction>())]
+    prediction: Account<'info, Prediction>,
+
     #[account(mut)]
-    pub signer: Signer<'info>,
+    user: Signer<'info>,
 
-    #[account(
-        init_if_needed,
-        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref()],
-        bump,
-        payer = signer,
-        space = 8 + std::mem::size_of::<StakeInfo>(),
-    )]
-    pub stake_info: Account<'info, StakeInfo>,
+    #[account(mut)]
+    market: Account<'info, Market>,
 
-    #[account(
-        init_if_needed,
-        seeds = [constants::TOKEN_SEED, signer.key.as_ref()],
-        bump,
-        payer = signer,
-        token::mint = mint,
-        token::authority = stake_account,
-    )]
-    pub stake_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = signer,
-    )]
-    pub user_token_account: Account<'info, TokenAccount>,
-
-    pub mint: Account<'info, Mint>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
+    system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-pub struct DeStake<'info> {
+pub struct SettlePrediction<'info> {
     #[account(mut)]
-    pub signer: Signer<'info>,
+    prediction: Account<'info, Prediction>,
 
-    #[account(
-        mut,
-        seeds = [constants::VAULT_SEED],
-        bump
-    )]
-    pub token_vault_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    user: Signer<'info>,
 
-    #[account(
-        mut,
-        seeds = [constants::STAKE_INFO_SEED, signer.key.as_ref()],
-        bump,
-    )]
-    pub stake_info: Account<'info, StakeInfo>,
-
-    #[account(
-        mut,
-        seeds = [constants::TOKEN_SEED, signer.key.as_ref()],
-        bump
-    )]
-    pub stake_account: Account<'info, TokenAccount>,
-
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = signer,
-    )]
-    pub user_token_account: Account<'info, TokenAccount>,
-
-    pub mint: Account<'info, Mint>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
+    #[account(mut)]
+    market: Account<'info, Market>,
 }
 
 #[account]
-struct Market {
+pub struct Market {
     authority: Pubkey,
     token_account: Pubkey,
     start: i64,
     end: i64,
+    payout_multiplier: u64, // Multiplier for payout (e.g., 200 for 2x)
 }
 
 #[account]
-struct Prediction {}
-
-#[account]
-pub struct StakeInfo {
-    // 8
-    pub stake_at_slot: u64,
-
-    // 1
-    pub is_staked: bool,
+pub struct Prediction {
+    user: Pubkey,
+    market: Pubkey,
+    prediction: bool,  // True for higher, False for lower
+    market_price: u64, // Market price at prediction time
+    amount: u64,       // Amount wagered
 }
 
 #[error_code]
-pub enum ErrorCode {
+pub enum ZoneErrorCode {
     #[msg("Tokens are already staked")]
     IsStaked,
 
@@ -283,4 +214,10 @@ pub enum ErrorCode {
 
     #[msg("No Tokens to stake")]
     NoTokens,
+
+    #[msg("Market has not started yet")]
+    NotStarted,
+
+    #[msg("Market has not finished yet")]
+    NotFinished,
 }
