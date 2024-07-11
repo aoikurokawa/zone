@@ -5,7 +5,7 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-zone = "FuF87VDgECo9tETuve2obCmt38r7EZM2HC34D8ePo6fz"
+zone = "7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa"
 
 [registry]
 url = "https://api.apr.dev"
