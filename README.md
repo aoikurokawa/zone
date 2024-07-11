@@ -1,5 +1,33 @@
 # Zone
 
+## Test
+
+Set env variable `ANCHOR_WALLET`
+
+Bash:
+
+```bash
+export ANCHOR_WALLET="/home/{username}/.config/solana/id.json"
+```
+
+Fish:
+
+```fish
+set -x ANCHOR_WALLET "/home/{username}/.config/solana/id.json"
+```
+
+Run localnet
+
+```bash
+anchor localnet
+```
+
+Run the test script
+
+```bash
+cargo test
+```
+
 # Accounts
 - Everything is an account
 - Can store some SOL
