@@ -1,5 +1,7 @@
 # Zone
 
+Using binary option models, create a prediction market for Solana meme coin prices. Users should be able to predict if a meme coin price will end higher or lower within a specified timeframe.
+
 ## Test
 
 Set env variable `ANCHOR_WALLET`
