@@ -23,8 +23,8 @@ fn test_initialize() {
 
         let tx = program
             .request()
-            .accounts(zone::accounts::Initialize {})
-            .args(zone::instruction::Initialize {})
+            .accounts(zone::accounts::InitializeMarket {})
+            .args(zone::instruction::InitializeMarket {})
             .send()
             .expect("");
 
