@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 declare_id!("7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa");
 
 pub mod constants {
-    pub const VAULT_SEED: &[u8] = b"vault";
+    pub const MARKET_SEED: &[u8] = b"market";
     pub const STAKE_INFO_SEED: &[u8] = b"stake_info";
     pub const TOKEN_SEED: &[u8] = b"token";
 }
@@ -11,7 +11,7 @@ pub mod constants {
 #[program]
 pub mod zone {
     use anchor_lang::{context::Context, Key, ToAccountInfo};
-    use solana_program::{clock::Clock, pubkey::Pubkey, sysvar::Sysvar};
+    use solana_program::{clock::Clock, msg, pubkey::Pubkey, sysvar::Sysvar};
 
     use crate::{
         CreatePrediction, Initialize, InitializeMarket, SettlePrediction, StartMarket,
@@ -27,6 +27,8 @@ pub mod zone {
         token_account: Pubkey,
         payout_multiplier: u64,
     ) -> anchor_lang::Result<()> {
+        msg!("Initialize market");
+
         let market = &mut ctx.accounts.market;
 
         market.authority = ctx.accounts.authority.key();
@@ -37,6 +39,8 @@ pub mod zone {
     }
 
     pub fn start_market(ctx: Context<StartMarket>, end: i64) -> anchor_lang::Result<()> {
+        msg!("Start market");
+
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
@@ -124,8 +128,15 @@ pub mod zone {
 pub struct Initialize {}
 
 #[derive(Accounts)]
+#[instruction(token_account: Pubkey)]
 pub struct InitializeMarket<'info> {
-    #[account(init, payer = authority, space = 8 + std::mem::size_of::<Market>())]
+    #[account(
+        init,
+        seeds = [crate::constants::MARKET_SEED, token_account.as_ref()],
+        bump,
+        payer = authority,
+        space = 8 + std::mem::size_of::<Market>())
+    ]
     market: Account<'info, Market>,
 
     #[account(mut)]
