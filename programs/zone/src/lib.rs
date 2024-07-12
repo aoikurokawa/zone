@@ -71,16 +71,21 @@ pub mod zone {
         new_prediction.market_price = current_price;
 
         // Transfer the amount to the market escrow account
-        **ctx
-            .accounts
-            .user
-            .to_account_info()
-            .try_borrow_mut_lamports()? -= amount;
-        **ctx
-            .accounts
-            .market
-            .to_account_info()
-            .try_borrow_mut_lamports()? += amount;
+        if ctx.accounts.user.lamports() > amount {
+            **ctx
+                .accounts
+                .user
+                .to_account_info()
+                .try_borrow_mut_lamports()? -= amount;
+
+            **ctx
+                .accounts
+                .market
+                .to_account_info()
+                .try_borrow_mut_lamports()? += amount;
+        } else {
+            return Err(ZoneErrorCode::NotEnoughSol.into());
+        }
 
         Ok(())
     }
@@ -216,4 +221,7 @@ pub enum ZoneErrorCode {
 
     #[msg("Market has not finished yet")]
     NotFinished,
+
+    #[msg("Not enough SOL")]
+    NotEnoughSol,
 }
