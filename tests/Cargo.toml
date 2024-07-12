@@ -7,5 +7,6 @@ edition = "2021"
 anchor-client = "0.29.0"
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
+chrono = { workspace = true }
 solana-program = { workspace = true }
 zone = { path = "../programs/zone" }

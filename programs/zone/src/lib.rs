@@ -4,7 +4,7 @@ declare_id!("7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa");
 
 pub mod constants {
     pub const MARKET_SEED: &[u8] = b"market";
-    pub const STAKE_INFO_SEED: &[u8] = b"stake_info";
+    pub const PREDICTION_SEED: &[u8] = b"prediction";
     pub const TOKEN_SEED: &[u8] = b"token";
 }
 
@@ -153,7 +153,13 @@ pub struct StartMarket<'info> {
 
 #[derive(Accounts)]
 pub struct CreatePrediction<'info> {
-    #[account(init_if_needed, payer = user, space = 8 + std::mem::size_of::<Prediction>())]
+    #[account(
+        init,
+        seeds = [crate::constants::PREDICTION_SEED, user.key.as_ref()],
+        bump,
+        payer = user,
+        space = 8 + std::mem::size_of::<Prediction>())
+    ]
     prediction: Account<'info, Prediction>,
 
     #[account(mut)]
@@ -197,15 +203,6 @@ pub struct Prediction {
 
 #[error_code]
 pub enum ZoneErrorCode {
-    #[msg("Tokens are already staked")]
-    IsStaked,
-
-    #[msg("Tokens not staked")]
-    NotStaked,
-
-    #[msg("No Tokens to stake")]
-    NoTokens,
-
     #[msg("Market has not started yet")]
     NotStarted,
 
