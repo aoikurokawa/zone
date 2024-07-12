@@ -59,7 +59,7 @@ pub mod zone {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        if market.start < clock.unix_timestamp {
+        if market.start > clock.unix_timestamp {
             return Err(ZoneErrorCode::NotStarted.into());
         }
 
@@ -90,11 +90,13 @@ pub mod zone {
     pub fn settle_prediction(
         ctx: Context<SettlePrediction>,
         actual_price: u64,
+        token_account: Pubkey,
+        bump: u8,
     ) -> anchor_lang::Result<()> {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        if market.end < clock.unix_timestamp {
+        if market.end > clock.unix_timestamp {
             return Err(ZoneErrorCode::NotFinished.into());
         } else {
             let prediction = &mut ctx.accounts.prediction;
@@ -111,12 +113,17 @@ pub mod zone {
             let transfer_sol =
                 anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
 
-            anchor_lang::solana_program::program::invoke(
+            anchor_lang::solana_program::program::invoke_signed(
                 &transfer_sol,
                 &[
-                    ctx.accounts.user.to_account_info(),
                     ctx.accounts.market.to_account_info(),
+                    ctx.accounts.user.to_account_info(),
                 ],
+                &[&[
+                    crate::constants::MARKET_SEED,
+                    token_account.as_ref(),
+                    &[bump],
+                ]],
             )?;
         }
 
@@ -155,7 +162,7 @@ pub struct StartMarket<'info> {
 pub struct CreatePrediction<'info> {
     #[account(
         init,
-        seeds = [crate::constants::PREDICTION_SEED, user.key.as_ref()],
+        seeds = [crate::constants::PREDICTION_SEED, market.key().as_ref(), user.key.as_ref()],
         bump,
         payer = user,
         space = 8 + std::mem::size_of::<Prediction>())

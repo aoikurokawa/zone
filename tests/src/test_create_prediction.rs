@@ -5,7 +5,7 @@ use anchor_client::{
         commitment_config::CommitmentConfig, pubkey::Pubkey, signature::read_keypair_file,
         signer::Signer,
     },
-    Client, Cluster,
+    Client, ClientError, Cluster,
 };
 use anchor_lang::system_program;
 use chrono::Utc;
@@ -13,7 +13,7 @@ use chrono::Utc;
 use crate::PROGRAM_ID;
 
 #[test]
-fn test_start_market() {
+fn test_create_prediction() {
     let program_id = PROGRAM_ID;
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
@@ -22,8 +22,8 @@ fn test_start_market() {
     let program_id = Pubkey::from_str(program_id).unwrap();
     let program = client.program(program_id).unwrap();
 
-    // BONK
-    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263").unwrap();
+    // WATER
+    let token_account = Pubkey::from_str("B6h248NJkAcBAkaCnji889a26tCiGXGN8cxhEJ4dX391").unwrap();
 
     let (market_pda, _bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
@@ -55,8 +55,10 @@ fn test_start_market() {
 
     assert!(tx.is_ok());
 
-    let (prediction_pda, _bump) =
-        Pubkey::find_program_address(&[b"prediction", payer.pubkey().as_ref()], &program_id);
+    let (prediction_pda, _bump) = Pubkey::find_program_address(
+        &[b"prediction", market_pda.as_ref(), payer.pubkey().as_ref()],
+        &program_id,
+    );
 
     let tx = program
         .request()
