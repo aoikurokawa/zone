@@ -70,19 +70,17 @@ pub mod zone {
         new_prediction.amount = amount;
         new_prediction.market_price = current_price;
 
-        let transfer_sol = anchor_lang::solana_program::system_instruction::transfer(
-            &new_prediction.user,
-            &new_prediction.market,
-            amount,
-        );
-
-        anchor_lang::solana_program::program::invoke(
-            &transfer_sol,
-            &[
-                ctx.accounts.user.to_account_info(),
-                ctx.accounts.market.to_account_info(),
-            ],
-        )?;
+        // Transfer the amount to the market escrow account
+        **ctx
+            .accounts
+            .user
+            .to_account_info()
+            .try_borrow_mut_lamports()? -= amount;
+        **ctx
+            .accounts
+            .market
+            .to_account_info()
+            .try_borrow_mut_lamports()? += amount;
 
         Ok(())
     }
@@ -118,6 +116,7 @@ pub mod zone {
                 &[
                     ctx.accounts.market.to_account_info(),
                     ctx.accounts.user.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
                 ],
                 &[&[
                     crate::constants::MARKET_SEED,
@@ -188,6 +187,8 @@ pub struct SettlePrediction<'info> {
 
     #[account(mut)]
     market: Account<'info, Market>,
+
+    system_program: Program<'info, System>,
 }
 
 #[account]

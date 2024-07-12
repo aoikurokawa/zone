@@ -85,6 +85,7 @@ fn test_settle_prediction() {
             prediction: prediction_pda,
             user: payer.pubkey(),
             market: market_pda,
+            system_program: system_program::ID,
         })
         .args(zone::instruction::SettlePrediction {
             actual_price: 200_000,
