@@ -89,6 +89,7 @@ fn main() {
                 })
                 .args(zone::instruction::Initialize {
                     amount: vault_amount * LAMPORTS_PER_SOL,
+                    vault_num: 0,
                 })
                 .send()
                 .expect("Failed to send initialize transaction");

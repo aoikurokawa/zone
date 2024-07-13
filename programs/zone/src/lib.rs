@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
-declare_id!("2BqXsVFG5Woo6VVg6pK4RM7g6W7YZwCSM9wYou8kzu6F");
+declare_id!("7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa");
+// declare_id!("2BqXsVFG5Woo6VVg6pK4RM7g6W7YZwCSM9wYou8kzu6F");
 
 pub mod constants {
     pub const VAULT_SEED: &[u8] = b"vault";
@@ -21,7 +22,12 @@ pub mod zone {
         ZoneErrorCode,
     };
 
-    pub fn initialize(ctx: Context<Initialize>, amount: u64) -> anchor_lang::Result<()> {
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        vault_num: u8,
+        amount: u64,
+    ) -> anchor_lang::Result<()> {
+        let _vault_num = vault_num;
         // deposit funds to vault
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -143,8 +149,9 @@ pub mod zone {
 }
 
 #[derive(Accounts)]
+#[instruction(vault_num: u8)]
 pub struct Initialize<'info> {
-    #[account(init_if_needed, seeds = [crate::constants::VAULT_SEED], bump, payer = authority, space = 8 + 1)]
+    #[account(init, seeds = [crate::constants::VAULT_SEED, &[vault_num]], bump, payer = authority, space = 8 + 1)]
     vault: Account<'info, Vault>,
 
     #[account(mut)]

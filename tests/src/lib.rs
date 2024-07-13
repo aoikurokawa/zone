@@ -3,12 +3,14 @@ use std::{str::FromStr, sync::Arc};
 use anchor_client::{
     solana_sdk::{
         commitment_config::CommitmentConfig,
-        signature::{read_keypair_file, Keypair},
+        signature::{read_keypair_file, Keypair, Signature},
         signer::Signer,
     },
-    Client, Cluster, Program,
+    Client, ClientError, Cluster, Program,
 };
-use solana_program::pubkey::Pubkey;
+use anchor_lang::system_program;
+use chrono::{DateTime, Utc};
+use solana_program::{native_token::LAMPORTS_PER_SOL, pubkey::Pubkey};
 
 #[allow(unused_imports)]
 mod test;
@@ -45,8 +47,9 @@ impl TestSetup {
         }
     }
 
-    pub fn get_vault_pda(&self) -> Pubkey {
-        let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &self.program_id);
+    pub fn get_vault_pda(&self, vault_num: u8) -> Pubkey {
+        let (vault_pda, _bump) =
+            Pubkey::find_program_address(&[b"vault", &[vault_num]], &self.program_id);
 
         vault_pda
     }
@@ -71,6 +74,94 @@ impl TestSetup {
         );
 
         prediction_pda
+    }
+
+    pub fn initialize(&self, vault_num: u8) -> Result<Signature, ClientError> {
+        self.program
+            .request()
+            .accounts(zone::accounts::Initialize {
+                vault: self.get_vault_pda(vault_num),
+                authority: self.payer.pubkey(),
+                system_program: system_program::ID,
+            })
+            .args(zone::instruction::Initialize {
+                amount: 100 * LAMPORTS_PER_SOL,
+                vault_num,
+            })
+            .send()
+    }
+
+    pub fn initialize_market(&self, token_account: Pubkey) -> Result<Signature, ClientError> {
+        self.program
+            .request()
+            .accounts(zone::accounts::InitializeMarket {
+                market: self.get_market_pda(token_account),
+                authority: self.payer.pubkey(),
+                system_program: system_program::ID,
+            })
+            .args(zone::instruction::InitializeMarket {
+                token_account,
+                payout_multiplier: 200,
+            })
+            .send()
+    }
+
+    pub fn start_market(
+        &self,
+        token_account: Pubkey,
+        end: DateTime<Utc>,
+    ) -> Result<Signature, ClientError> {
+        self.program
+            .request()
+            .accounts(zone::accounts::StartMarket {
+                market: self.get_market_pda(token_account),
+            })
+            .args(zone::instruction::StartMarket {
+                end: end.timestamp(),
+            })
+            .send()
+    }
+
+    pub fn create_prediction(
+        &self,
+        vault_num: u8,
+        token_account: Pubkey,
+    ) -> Result<Signature, ClientError> {
+        self.program
+            .request()
+            .accounts(zone::accounts::CreatePrediction {
+                prediction: self.get_prediction_pda(token_account),
+                user: self.payer.pubkey(),
+                market: self.get_market_pda(token_account),
+                system_program: system_program::ID,
+                vault: self.get_vault_pda(vault_num),
+            })
+            .args(zone::instruction::CreatePrediction {
+                prediction: true,
+                amount: 100,
+                current_price: 100_000,
+            })
+            .send()
+    }
+
+    pub fn settle_prediction(
+        &self,
+        vault_num: u8,
+        token_account: Pubkey,
+    ) -> Result<Signature, ClientError> {
+        self.program
+            .request()
+            .accounts(zone::accounts::SettlePrediction {
+                prediction: self.get_prediction_pda(token_account),
+                user: self.payer.pubkey(),
+                market: self.get_market_pda(token_account),
+                system_program: system_program::ID,
+                vault: self.get_vault_pda(vault_num),
+            })
+            .args(zone::instruction::SettlePrediction {
+                actual_price: 20_000,
+            })
+            .send()
     }
 }
 
