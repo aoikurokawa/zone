@@ -11,6 +11,7 @@ use anchor_client::{
 };
 use anchor_lang::system_program;
 use chrono::Utc;
+use sequential_test::sequential;
 use solana_program::native_token::LAMPORTS_PER_SOL;
 
 use crate::TestSetup;
@@ -21,6 +22,7 @@ const WIF_TOKEN_ADDRESS: &str = "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm";
 const BONK_TOKEN_ADDRESS: &str = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
 
 #[test]
+#[sequential]
 fn test_initialize() {
     let setup = TestSetup::new();
 
@@ -41,6 +43,7 @@ fn test_initialize() {
 }
 
 #[test]
+#[sequential]
 fn test_fail_initialize() {
     let setup = TestSetup::new();
 
@@ -61,6 +64,7 @@ fn test_fail_initialize() {
 }
 
 #[test]
+#[sequential]
 fn test_initialize_market() {
     let setup = TestSetup::new();
 
@@ -85,6 +89,7 @@ fn test_initialize_market() {
 }
 
 #[test]
+#[sequential]
 fn test_fail_initialize_market() {
     let setup = TestSetup::new();
 
@@ -109,6 +114,7 @@ fn test_fail_initialize_market() {
 }
 
 #[test]
+#[sequential]
 fn test_start_market() {
     let setup = TestSetup::new();
 
@@ -148,6 +154,7 @@ fn test_start_market() {
 }
 
 #[test]
+#[sequential]
 fn test_fail_start_market() {
     let setup = TestSetup::new();
 
@@ -171,6 +178,7 @@ fn test_fail_start_market() {
 }
 
 #[test]
+#[sequential]
 fn test_create_prediction() {
     let setup = TestSetup::new();
 
@@ -229,6 +237,7 @@ fn test_create_prediction() {
 }
 
 #[test]
+#[sequential]
 fn test_fail_create_prediction() {
     let setup = TestSetup::new();
 
@@ -256,6 +265,7 @@ fn test_fail_create_prediction() {
 }
 
 #[test]
+#[sequential]
 fn test_settle_prediction() {
     let setup = TestSetup::new();
 
@@ -333,6 +343,7 @@ fn test_settle_prediction() {
 }
 
 #[test]
+#[sequential]
 fn test_fail_settle_prediction() {
     let setup = TestSetup::new();
 

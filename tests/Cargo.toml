@@ -8,5 +8,6 @@ anchor-client = "0.29.0"
 anchor-lang = { workspace = true }
 anchor-spl = { workspace = true }
 chrono = { workspace = true }
+sequential-test = "0.2.4"
 solana-program = { workspace = true }
 zone = { path = "../programs/zone" }
