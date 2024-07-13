@@ -33,7 +33,7 @@ anchor localnet
 ### Run all test
 
 ```bash
-cargo test
+cargo test -- --test-threads=1
 ```
 
 ## Run app

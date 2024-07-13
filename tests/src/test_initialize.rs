@@ -2,7 +2,9 @@ use std::str::FromStr;
 
 use anchor_client::{
     solana_sdk::{
-        commitment_config::CommitmentConfig, pubkey::Pubkey, signature::read_keypair_file,
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Keypair},
         signer::Signer,
     },
     Client, Cluster,
@@ -10,26 +12,18 @@ use anchor_client::{
 use anchor_lang::system_program;
 use solana_program::native_token::LAMPORTS_PER_SOL;
 
-#[allow(unused_imports)]
-use crate::PROGRAM_ID;
+use crate::TestSetup;
 
 #[test]
 fn test_initialize() {
-    let program_id = PROGRAM_ID;
-    let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
-    let payer = read_keypair_file(&anchor_wallet).unwrap();
+    let setup = TestSetup::new();
 
-    let client = Client::new_with_options(Cluster::Localnet, &payer, CommitmentConfig::confirmed());
-    let program_id = Pubkey::from_str(program_id).unwrap();
-    let program = client.program(program_id).unwrap();
-
-    let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &program_id);
-
-    let tx = program
+    let sig = setup
+        .program
         .request()
         .accounts(zone::accounts::Initialize {
-            vault: vault_pda,
-            authority: payer.pubkey(),
+            vault: setup.get_vault_pda(),
+            authority: setup.payer.pubkey(),
             system_program: system_program::ID,
         })
         .args(zone::instruction::Initialize {
@@ -37,5 +31,25 @@ fn test_initialize() {
         })
         .send();
 
-    assert!(tx.is_ok());
+    assert!(sig.is_ok());
+}
+
+#[test]
+fn test_fail_initialize() {
+    let setup = TestSetup::new();
+
+    let sig = setup
+        .program
+        .request()
+        .accounts(zone::accounts::Initialize {
+            vault: setup.get_vault_pda(),
+            authority: setup.payer.pubkey(),
+            system_program: system_program::ID,
+        })
+        .args(zone::instruction::Initialize {
+            amount: 100 * LAMPORTS_PER_SOL,
+        })
+        .send();
+
+    assert!(sig.is_err());
 }
