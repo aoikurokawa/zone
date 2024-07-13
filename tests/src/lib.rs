@@ -14,10 +14,6 @@ mod test;
 #[allow(unused_imports)]
 mod test_create_prediction;
 #[allow(unused_imports)]
-mod test_initialize;
-#[allow(unused_imports)]
-mod test_initialize_market;
-#[allow(unused_imports)]
 mod test_settle_prediction;
 #[allow(unused_imports)]
 mod test_start_market;

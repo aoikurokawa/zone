@@ -57,7 +57,11 @@ pub mod zone {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        market.start = clock.unix_timestamp;
+        if market.start != 0 {
+            return Err(ZoneErrorCode::AlreadyStarted.into());
+        }
+
+        clock.unix_timestamp;
         market.end = end;
 
         Ok(())
@@ -236,6 +240,9 @@ pub struct Prediction {
 
 #[error_code]
 pub enum ZoneErrorCode {
+    #[msg("Market has already started")]
+    AlreadyStarted,
+
     #[msg("Market has not started yet")]
     NotStarted,
 
