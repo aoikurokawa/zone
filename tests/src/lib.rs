@@ -15,8 +15,6 @@ mod test;
 mod test_create_prediction;
 #[allow(unused_imports)]
 mod test_settle_prediction;
-#[allow(unused_imports)]
-mod test_start_market;
 
 pub const PROGRAM_ID: &str = "7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa";
 
