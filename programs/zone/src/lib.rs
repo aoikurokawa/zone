@@ -21,7 +21,17 @@ pub mod zone {
         ZoneErrorCode,
     };
 
-    pub fn initialize(_ctx: Context<Initialize>) -> anchor_lang::Result<()> {
+    pub fn initialize(ctx: Context<Initialize>, amount: u64) -> anchor_lang::Result<()> {
+        // deposit funds to vault
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            system_program::Transfer {
+                from: ctx.accounts.authority.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
+        );
+        system_program::transfer(cpi_context, amount)?;
+
         Ok(())
     }
 

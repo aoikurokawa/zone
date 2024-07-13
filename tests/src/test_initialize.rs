@@ -8,6 +8,7 @@ use anchor_client::{
     Client, Cluster,
 };
 use anchor_lang::system_program;
+use solana_program::native_token::LAMPORTS_PER_SOL;
 
 #[allow(unused_imports)]
 use crate::PROGRAM_ID;
@@ -31,7 +32,9 @@ fn test_initialize() {
             authority: payer.pubkey(),
             system_program: system_program::ID,
         })
-        .args(zone::instruction::Initialize {})
+        .args(zone::instruction::Initialize {
+            amount: 100 * LAMPORTS_PER_SOL,
+        })
         .send();
 
     assert!(tx.is_ok());

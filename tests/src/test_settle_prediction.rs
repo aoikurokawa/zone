@@ -1,19 +1,25 @@
 use std::{str::FromStr, thread::sleep};
 
 use anchor_client::{
+    solana_client::rpc_client::RpcClient,
     solana_sdk::{
-        commitment_config::CommitmentConfig, pubkey::Pubkey, signature::read_keypair_file,
+        commitment_config::CommitmentConfig,
+        pubkey::Pubkey,
+        signature::{read_keypair_file, Keypair},
         signer::Signer,
     },
     Client, ClientError, Cluster,
 };
 use anchor_lang::system_program;
 use chrono::Utc;
+use solana_program::native_token::LAMPORTS_PER_SOL;
 
 use crate::PROGRAM_ID;
 
 #[test]
 fn test_settle_prediction() {
+    // CATWIFHAT
+    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB265").unwrap();
     let program_id = PROGRAM_ID;
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
@@ -22,8 +28,7 @@ fn test_settle_prediction() {
     let program_id = Pubkey::from_str(program_id).unwrap();
     let program = client.program(program_id).unwrap();
 
-    // CATWIFHAT
-    let token_account = Pubkey::from_str("7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv7").unwrap();
+    let _rpc_client = RpcClient::new(Cluster::Localnet.url());
 
     let (market_pda, _market_bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
@@ -63,7 +68,7 @@ fn test_settle_prediction() {
     );
     let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &program_id);
 
-    match program
+    let tx = program
         .request()
         .accounts(zone::accounts::CreatePrediction {
             prediction: prediction_pda,
@@ -74,22 +79,14 @@ fn test_settle_prediction() {
         })
         .args(zone::instruction::CreatePrediction {
             prediction: true,
-            amount: 100,
+            amount: 10 * LAMPORTS_PER_SOL,
             current_price: 100_000,
         })
-        .send()
-    {
-        Ok(sig) => {
-            println!("{sig}");
-        }
-        Err(e) => {
-            println!("{e:?}");
-        }
-    }
+        .send();
 
-    // assert!(tx.is_ok());
+    assert!(tx.is_ok());
 
-    match program
+    let tx = program
         .request()
         .accounts(zone::accounts::SettlePrediction {
             prediction: prediction_pda,
@@ -99,17 +96,9 @@ fn test_settle_prediction() {
             vault: vault_pda,
         })
         .args(zone::instruction::SettlePrediction {
-            actual_price: 200_000,
+            actual_price: 20_000,
         })
-        .send()
-    {
-        Ok(sig) => {
-            println!("{sig}");
-        }
-        Err(e) => {
-            println!("{e:?}");
-        }
-    }
+        .send();
 
-    // assert!(tx.is_ok());
+    assert!(tx.is_ok());
 }
