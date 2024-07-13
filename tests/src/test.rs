@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, thread::sleep};
 
 use anchor_client::{
     solana_sdk::{
@@ -253,4 +253,81 @@ fn test_fail_create_prediction() {
         .send();
 
     assert!(tx.is_err());
+}
+
+#[test]
+fn test_settle_prediction() {
+    let setup = TestSetup::new();
+
+    // CATWIFHAT
+    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB265").unwrap();
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::InitializeMarket {
+            market: setup.get_market_pda(token_account),
+            authority: setup.payer.pubkey(),
+            system_program: system_program::ID,
+        })
+        .args(zone::instruction::InitializeMarket {
+            token_account,
+            payout_multiplier: 200,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    let end = Utc::now() + chrono::Duration::microseconds(1);
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::StartMarket {
+            market: setup.get_market_pda(token_account),
+        })
+        .args(zone::instruction::StartMarket {
+            end: end.timestamp(),
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    sleep(std::time::Duration::new(5, 0));
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::CreatePrediction {
+            prediction: setup.get_prediction_pda(token_account),
+            user: setup.payer.pubkey(),
+            market: setup.get_market_pda(token_account),
+            system_program: system_program::ID,
+            vault: setup.get_vault_pda(),
+        })
+        .args(zone::instruction::CreatePrediction {
+            prediction: true,
+            amount: 10 * LAMPORTS_PER_SOL,
+            current_price: 100_000,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::SettlePrediction {
+            prediction: setup.get_prediction_pda(token_account),
+            user: setup.payer.pubkey(),
+            market: setup.get_market_pda(token_account),
+            system_program: system_program::ID,
+            vault: setup.get_vault_pda(),
+        })
+        .args(zone::instruction::SettlePrediction {
+            actual_price: 20_000,
+        })
+        .send();
+
+    assert!(tx.is_ok());
 }
