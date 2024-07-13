@@ -4,6 +4,7 @@ use anchor_client::{
     solana_sdk::{
         commitment_config::CommitmentConfig,
         signature::{read_keypair_file, Keypair},
+        signer::Signer,
     },
     Client, Cluster, Program,
 };
@@ -11,8 +12,6 @@ use solana_program::pubkey::Pubkey;
 
 #[allow(unused_imports)]
 mod test;
-#[allow(unused_imports)]
-mod test_create_prediction;
 #[allow(unused_imports)]
 mod test_settle_prediction;
 
@@ -59,5 +58,20 @@ impl TestSetup {
             Pubkey::find_program_address(&[b"market", token_account.as_ref()], &self.program_id);
 
         market_pda
+    }
+
+    pub fn get_prediction_pda(&self, token_account: Pubkey) -> Pubkey {
+        let market_pda = self.get_market_pda(token_account);
+
+        let (prediction_pda, _bump) = Pubkey::find_program_address(
+            &[
+                b"prediction",
+                market_pda.as_ref(),
+                self.payer.pubkey().as_ref(),
+            ],
+            &self.program_id,
+        );
+
+        prediction_pda
     }
 }

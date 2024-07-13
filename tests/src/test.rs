@@ -154,22 +154,6 @@ fn test_fail_start_market() {
     // BONK
     let token_account = Pubkey::from_str(BONK_TOKEN_ADDRESS).unwrap();
 
-    let sig = setup
-        .program
-        .request()
-        .accounts(zone::accounts::InitializeMarket {
-            market: setup.get_market_pda(token_account),
-            authority: setup.payer.pubkey(),
-            system_program: system_program::ID,
-        })
-        .args(zone::instruction::InitializeMarket {
-            token_account,
-            payout_multiplier: 200,
-        })
-        .send();
-
-    assert!(sig.is_ok());
-
     let end = Utc::now() + chrono::Duration::days(1);
 
     let sig = setup
@@ -184,4 +168,89 @@ fn test_fail_start_market() {
         .send();
 
     assert!(sig.is_err());
+}
+
+#[test]
+fn test_create_prediction() {
+    let setup = TestSetup::new();
+
+    // WATER
+    let token_account = Pubkey::from_str("B6h248NJkAcBAkaCnji889a26tCiGXGN8cxhEJ4dX391").unwrap();
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::InitializeMarket {
+            market: setup.get_market_pda(token_account),
+            authority: setup.payer.pubkey(),
+            system_program: system_program::ID,
+        })
+        .args(zone::instruction::InitializeMarket {
+            token_account,
+            payout_multiplier: 200,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    let end = Utc::now() + chrono::Duration::days(1);
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::StartMarket {
+            market: setup.get_market_pda(token_account),
+        })
+        .args(zone::instruction::StartMarket {
+            end: end.timestamp(),
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::CreatePrediction {
+            prediction: setup.get_prediction_pda(token_account),
+            user: setup.payer.pubkey(),
+            market: setup.get_market_pda(token_account),
+            system_program: system_program::ID,
+            vault: setup.get_vault_pda(),
+        })
+        .args(zone::instruction::CreatePrediction {
+            prediction: true,
+            amount: 100,
+            current_price: 100_000,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+}
+
+#[test]
+fn test_fail_create_prediction() {
+    let setup = TestSetup::new();
+
+    // WATER
+    let token_account = Pubkey::from_str("B6h248NJkAcBAkaCnji889a26tCiGXGN8cxhEJ4dX391").unwrap();
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::CreatePrediction {
+            prediction: setup.get_prediction_pda(token_account),
+            user: setup.payer.pubkey(),
+            market: setup.get_market_pda(token_account),
+            system_program: system_program::ID,
+            vault: setup.get_vault_pda(),
+        })
+        .args(zone::instruction::CreatePrediction {
+            prediction: true,
+            amount: 100,
+            current_price: 100_000,
+        })
+        .send();
+
+    assert!(tx.is_err());
 }
