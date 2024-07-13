@@ -23,10 +23,10 @@ const WIF_TOKEN_ADDRESS: &str = "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm";
 const BONK_TOKEN_ADDRESS: &str = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
 
 #[allow(dead_code)]
-const WATER_TOKEN_ADDRESS: &str = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+const MOTHER_TOKEN_ADDRESS: &str = "3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN";
 
 #[allow(dead_code)]
-const CATWIFHAT_TOKEN_ADDRESS: &str = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+const CATWIFHAT_TOKEN_ADDRESS: &str = "7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv1";
 
 #[test]
 fn test_initialize() {
@@ -70,16 +70,7 @@ fn test_start_market() {
 
     // Success pattern
     let success_res = setup.start_market(token_account, end);
-    match success_res {
-        Ok(sig) => {
-            println!("{sig}");
-        }
-        Err(e) => {
-            println!("{e:?}");
-        }
-    }
-    // assert!(success_res.is_ok());
-
+    assert!(success_res.is_ok());
 
     // Fail pattern (Already started the market)
     let fail_res = setup.start_market(token_account, end);
@@ -89,7 +80,7 @@ fn test_start_market() {
 #[test]
 fn test_create_prediction() {
     // WATER
-    let token_account = Pubkey::from_str(WATER_TOKEN_ADDRESS).unwrap();
+    let token_account = Pubkey::from_str(MOTHER_TOKEN_ADDRESS).unwrap();
     let setup = TestSetup::new();
     let vault_num = 3;
     let end = Utc::now() + chrono::Duration::days(1);
