@@ -61,7 +61,7 @@ pub mod zone {
             return Err(ZoneErrorCode::AlreadyStarted.into());
         }
 
-        clock.unix_timestamp;
+        market.start = clock.unix_timestamp;
         market.end = end;
 
         Ok(())

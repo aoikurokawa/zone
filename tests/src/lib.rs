@@ -73,3 +73,9 @@ impl TestSetup {
         prediction_pda
     }
 }
+
+impl Default for TestSetup {
+    fn default() -> Self {
+        TestSetup::new()
+    }
+}

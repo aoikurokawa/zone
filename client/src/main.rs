@@ -99,7 +99,7 @@ fn main() {
             token_address,
             payout_multiplier,
         } => {
-            let token_account = Pubkey::from_str(&token_address).unwrap();
+            let token_account = Pubkey::from_str(token_address).unwrap();
 
             let (market_pda, _bump) =
                 Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
@@ -121,7 +121,7 @@ fn main() {
             println!("Successfully initialized market: https://solscan.io/tx/{sig}?cluster=devnet");
         }
         Commands::StartMarket { token_address, end } => {
-            let token_account = Pubkey::from_str(&token_address).unwrap();
+            let token_account = Pubkey::from_str(token_address).unwrap();
 
             let (market_pda, _bump) =
                 Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
@@ -147,7 +147,7 @@ fn main() {
             amount,
             current_price,
         } => {
-            let token_account = Pubkey::from_str(&token_address).unwrap();
+            let token_account = Pubkey::from_str(token_address).unwrap();
             let (market_pda, _bump) =
                 Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
 
@@ -156,7 +156,7 @@ fn main() {
                 &program_id,
             );
 
-            let prediction = if *prediction == 0 { false } else { true };
+            let prediction = *prediction != 0;
 
             let sig = program
                 .request()
