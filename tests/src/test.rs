@@ -331,3 +331,28 @@ fn test_settle_prediction() {
 
     assert!(tx.is_ok());
 }
+
+#[test]
+fn test_fail_settle_prediction() {
+    let setup = TestSetup::new();
+
+    // CATWIFHAT
+    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB265").unwrap();
+
+    let tx = setup
+        .program
+        .request()
+        .accounts(zone::accounts::SettlePrediction {
+            prediction: setup.get_prediction_pda(token_account),
+            user: setup.payer.pubkey(),
+            market: setup.get_market_pda(token_account),
+            system_program: system_program::ID,
+            vault: setup.get_vault_pda(),
+        })
+        .args(zone::instruction::SettlePrediction {
+            actual_price: 20_000,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+}

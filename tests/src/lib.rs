@@ -12,8 +12,6 @@ use solana_program::pubkey::Pubkey;
 
 #[allow(unused_imports)]
 mod test;
-#[allow(unused_imports)]
-mod test_settle_prediction;
 
 pub const PROGRAM_ID: &str = "7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa";
 
