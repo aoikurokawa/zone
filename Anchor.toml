@@ -7,6 +7,9 @@ skip-lint = false
 [programs.localnet]
 zone = "7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa"
 
+[programs.devnet]
+zone = "2BqXsVFG5Woo6VVg6pK4RM7g6W7YZwCSM9wYou8kzu6F"
+
 [registry]
 url = "https://api.apr.dev"
 

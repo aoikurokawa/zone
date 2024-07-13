@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa");
+declare_id!("2BqXsVFG5Woo6VVg6pK4RM7g6W7YZwCSM9wYou8kzu6F");
 
 pub mod constants {
     pub const VAULT_SEED: &[u8] = b"vault";
@@ -132,23 +132,6 @@ pub mod zone {
                 );
                 system_program::transfer(cpi_context, reward)?;
             }
-
-            // let transfer_sol =
-            //     anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
-
-            // anchor_lang::solana_program::program::invoke_signed(
-            //     &transfer_sol,
-            //     &[
-            //         ctx.accounts.vault.to_account_info(),
-            //         ctx.accounts.user.to_account_info(),
-            //         ctx.accounts.system_program.to_account_info(),
-            //     ],
-            //     &[&[
-            //         crate::constants::MARKET_SEED,
-            //         token_account.as_ref(),
-            //         &[bump],
-            //     ]],
-            // )?;
         }
 
         Ok(())

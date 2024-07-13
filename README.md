@@ -4,7 +4,7 @@ Using binary option models, create a prediction market for Solana meme coin pric
 
 ## Test
 
-Set env variable `ANCHOR_WALLET`
+### Set env variable `ANCHOR_WALLET`
 
 Bash:
 
@@ -18,56 +18,87 @@ Fish:
 set -x ANCHOR_WALLET "/home/{username}/.config/solana/id.json"
 ```
 
-Run localnet
+### Build the programs
+
+```bash
+anchor build
+```
+
+### Run localnet
 
 ```bash
 anchor localnet
 ```
 
-Run the test script
+### Run all test
 
 ```bash
 cargo test
 ```
 
-# Accounts
-- Everything is an account
-- Can store some SOL
-- Unique 256-bit addresss 
-- Can store arbitray data
+## Run app
 
+### Show all commands
+
+```bash
+cargo r -- --help
+
+# Usage: client <COMMAND>
+# 
+# Commands:
+#   initialize         Initialize the vault
+#   initialize-market  Initialize the market
+#   start-market       Start the market
+#   create-prediction  Bet YES or NO
+#   help               Print this message or the help of the given subcommand(s)
+# 
+# Options:
+#   -h, --help     Print help
+#   -V, --version  Print version
 ```
-{
-    key: number, // The address of the account
-    lamports: number, // Lamports currently held. 1 Lamport = 10E-9SOL
-    data: Uint8Array, // Data stored in the account
-    is_executable: boolean, // is this data a program?
-    owner: PublicKey, // The program with write access
-}
+
+### Initialize the vault
+
+Pass the amount(SOL) to put in the vault
+
+```bash
+cargo r -- initialize 5
 ```
 
-# Programs
-- Smart contracts on Solana are called "programs"
-- Special kind of account
-- Data is eBPF bytecode
-- Written in Rust, C/C++, Python
-- Programs are stateless: they read & write data to other accounts. This allows programs to be executed in parallel
-- Must be the owner of an account to modify
-- Programs process instructions
-- Programs can send instructions to other programs
+### Initialize the market
 
-# Program instructions
+Pass the arguments
 
+- token address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'(BONK)
+- payout multiplier: 200(ex.)
+
+
+```bash
+cargo r -- initialize-market '3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN' 200
 ```
-{
-    program_id: number, // The program this instruction is for
-    keys: Array<{ // Accounts involved in the instruction
-        key: PublicKey,
-        is_mutable: boolean,
-        is_signer: boolean,
-    }>,
-    data: Uint8Array, // Action + args
-}
+
+### Start the market
+
+Pass the arguments
+
+- token address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'(BONK)
+- end: '2024-06-13 14:00:00'
+
+```bash
+cargo r -- start-market '3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN'  '2024-06-13 14:00:00'
+```
+
+### Predict higher or lower
+
+Pass the argument
+
+- token address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'(BONK)
+- bet: if you think it would be higher, then 1, otherwise 0
+- amount: how much you bet for prediction
+- current price: current price of token
+
+```bash
+cargo r -- bet '3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN' 1 1 100
 ```
 
 ## Resources
