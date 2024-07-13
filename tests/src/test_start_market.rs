@@ -8,13 +8,12 @@ use anchor_client::{
     Client, Cluster,
 };
 use anchor_lang::system_program;
-use solana_program::native_token::LAMPORTS_PER_SOL;
+use chrono::Utc;
 
-#[allow(unused_imports)]
 use crate::PROGRAM_ID;
 
 #[test]
-fn test_initialize() {
+fn test_start_market() {
     let program_id = PROGRAM_ID;
     let anchor_wallet = std::env::var("ANCHOR_WALLET").unwrap();
     let payer = read_keypair_file(&anchor_wallet).unwrap();
@@ -23,17 +22,34 @@ fn test_initialize() {
     let program_id = Pubkey::from_str(program_id).unwrap();
     let program = client.program(program_id).unwrap();
 
-    let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &program_id);
+    // BONK
+    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263").unwrap();
+
+    let (market_pda, _bump) =
+        Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
 
     let tx = program
         .request()
-        .accounts(zone::accounts::Initialize {
-            vault: vault_pda,
+        .accounts(zone::accounts::InitializeMarket {
+            market: market_pda,
             authority: payer.pubkey(),
             system_program: system_program::ID,
         })
-        .args(zone::instruction::Initialize {
-            amount: 100 * LAMPORTS_PER_SOL,
+        .args(zone::instruction::InitializeMarket {
+            token_account,
+            payout_multiplier: 200,
+        })
+        .send();
+
+    assert!(tx.is_ok());
+
+    let end = Utc::now() + chrono::Duration::days(1);
+
+    let tx = program
+        .request()
+        .accounts(zone::accounts::StartMarket { market: market_pda })
+        .args(zone::instruction::StartMarket {
+            end: end.timestamp(),
         })
         .send();
 

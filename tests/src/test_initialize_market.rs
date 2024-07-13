@@ -21,8 +21,8 @@ fn test_initialize_market() {
     let program_id = Pubkey::from_str(program_id).unwrap();
     let program = client.program(program_id).unwrap();
 
-    // BONK
-    let token_account = Pubkey::from_str("DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263").unwrap();
+    // WIF
+    let token_account = Pubkey::from_str("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm").unwrap();
 
     let (market_pda, _bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);

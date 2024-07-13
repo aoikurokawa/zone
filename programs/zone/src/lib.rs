@@ -3,14 +3,17 @@ use anchor_lang::prelude::*;
 declare_id!("7UyLYeoNwWeh3LgMUnWFKPc1Ebwr8Afzsz8hVjgavoRa");
 
 pub mod constants {
+    pub const VAULT_SEED: &[u8] = b"vault";
     pub const MARKET_SEED: &[u8] = b"market";
-    pub const STAKE_INFO_SEED: &[u8] = b"stake_info";
-    pub const TOKEN_SEED: &[u8] = b"token";
+    pub const PREDICTION_SEED: &[u8] = b"prediction";
 }
 
 #[program]
 pub mod zone {
-    use anchor_lang::{context::Context, Key, ToAccountInfo};
+    use anchor_lang::{
+        context::{Context, CpiContext},
+        system_program, Key, ToAccountInfo,
+    };
     use solana_program::{clock::Clock, msg, pubkey::Pubkey, sysvar::Sysvar};
 
     use crate::{
@@ -18,7 +21,17 @@ pub mod zone {
         ZoneErrorCode,
     };
 
-    pub fn initialize(_ctx: Context<Initialize>) -> anchor_lang::Result<()> {
+    pub fn initialize(ctx: Context<Initialize>, amount: u64) -> anchor_lang::Result<()> {
+        // deposit funds to vault
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            system_program::Transfer {
+                from: ctx.accounts.authority.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
+        );
+        system_program::transfer(cpi_context, amount)?;
+
         Ok(())
     }
 
@@ -59,7 +72,7 @@ pub mod zone {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        if market.start < clock.unix_timestamp {
+        if market.start > clock.unix_timestamp {
             return Err(ZoneErrorCode::NotStarted.into());
         }
 
@@ -70,19 +83,15 @@ pub mod zone {
         new_prediction.amount = amount;
         new_prediction.market_price = current_price;
 
-        let transfer_sol = anchor_lang::solana_program::system_instruction::transfer(
-            &new_prediction.user,
-            &new_prediction.market,
-            amount,
+        // Transfer the amount to the market escrow account
+        let cpi_context = CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            system_program::Transfer {
+                from: ctx.accounts.user.to_account_info(),
+                to: ctx.accounts.vault.to_account_info(),
+            },
         );
-
-        anchor_lang::solana_program::program::invoke(
-            &transfer_sol,
-            &[
-                ctx.accounts.user.to_account_info(),
-                ctx.accounts.market.to_account_info(),
-            ],
-        )?;
+        system_program::transfer(cpi_context, amount)?;
 
         Ok(())
     }
@@ -94,30 +103,52 @@ pub mod zone {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        if market.end < clock.unix_timestamp {
+        if market.end > clock.unix_timestamp {
             return Err(ZoneErrorCode::NotFinished.into());
         } else {
             let prediction = &mut ctx.accounts.prediction;
             let reward = (prediction.amount * market.payout_multiplier) / 100;
 
-            let (from, to) = if (actual_price > prediction.market_price && prediction.prediction)
+            if (actual_price > prediction.market_price && prediction.prediction)
                 || (actual_price < prediction.market_price && !prediction.prediction)
             {
-                (prediction.market, prediction.user)
+                **ctx
+                    .accounts
+                    .vault
+                    .to_account_info()
+                    .try_borrow_mut_lamports()? -= reward;
+                **ctx
+                    .accounts
+                    .user
+                    .to_account_info()
+                    .try_borrow_mut_lamports()? += reward;
             } else {
-                (prediction.user, prediction.market)
-            };
+                let cpi_context = CpiContext::new(
+                    ctx.accounts.system_program.to_account_info(),
+                    system_program::Transfer {
+                        from: ctx.accounts.user.to_account_info(),
+                        to: ctx.accounts.vault.to_account_info(),
+                    },
+                );
+                system_program::transfer(cpi_context, reward)?;
+            }
 
-            let transfer_sol =
-                anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
+            // let transfer_sol =
+            //     anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
 
-            anchor_lang::solana_program::program::invoke(
-                &transfer_sol,
-                &[
-                    ctx.accounts.user.to_account_info(),
-                    ctx.accounts.market.to_account_info(),
-                ],
-            )?;
+            // anchor_lang::solana_program::program::invoke_signed(
+            //     &transfer_sol,
+            //     &[
+            //         ctx.accounts.vault.to_account_info(),
+            //         ctx.accounts.user.to_account_info(),
+            //         ctx.accounts.system_program.to_account_info(),
+            //     ],
+            //     &[&[
+            //         crate::constants::MARKET_SEED,
+            //         token_account.as_ref(),
+            //         &[bump],
+            //     ]],
+            // )?;
         }
 
         Ok(())
@@ -125,7 +156,15 @@ pub mod zone {
 }
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct Initialize<'info> {
+    #[account(init_if_needed, seeds = [crate::constants::VAULT_SEED], bump, payer = authority, space = 8 + 1)]
+    vault: Account<'info, Vault>,
+
+    #[account(mut)]
+    authority: Signer<'info>,
+
+    system_program: Program<'info, System>,
+}
 
 #[derive(Accounts)]
 #[instruction(token_account: Pubkey)]
@@ -153,7 +192,16 @@ pub struct StartMarket<'info> {
 
 #[derive(Accounts)]
 pub struct CreatePrediction<'info> {
-    #[account(init_if_needed, payer = user, space = 8 + std::mem::size_of::<Prediction>())]
+    #[account(mut)]
+    vault: Account<'info, Vault>,
+
+    #[account(
+        init,
+        seeds = [crate::constants::PREDICTION_SEED, market.key().as_ref(), user.key.as_ref()],
+        bump,
+        payer = user,
+        space = 8 + std::mem::size_of::<Prediction>())
+    ]
     prediction: Account<'info, Prediction>,
 
     #[account(mut)]
@@ -168,6 +216,9 @@ pub struct CreatePrediction<'info> {
 #[derive(Accounts)]
 pub struct SettlePrediction<'info> {
     #[account(mut)]
+    vault: Account<'info, Vault>,
+
+    #[account(mut)]
     prediction: Account<'info, Prediction>,
 
     #[account(mut)]
@@ -175,7 +226,12 @@ pub struct SettlePrediction<'info> {
 
     #[account(mut)]
     market: Account<'info, Market>,
+
+    system_program: Program<'info, System>,
 }
+
+#[account]
+pub struct Vault {}
 
 #[account]
 pub struct Market {
@@ -197,18 +253,12 @@ pub struct Prediction {
 
 #[error_code]
 pub enum ZoneErrorCode {
-    #[msg("Tokens are already staked")]
-    IsStaked,
-
-    #[msg("Tokens not staked")]
-    NotStaked,
-
-    #[msg("No Tokens to stake")]
-    NoTokens,
-
     #[msg("Market has not started yet")]
     NotStarted,
 
     #[msg("Market has not finished yet")]
     NotFinished,
+
+    #[msg("Not enough SOL")]
+    NotEnoughSol,
 }
