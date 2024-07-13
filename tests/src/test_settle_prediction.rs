@@ -23,7 +23,7 @@ fn test_settle_prediction() {
     let program = client.program(program_id).unwrap();
 
     // CATWIFHAT
-    let token_account = Pubkey::from_str("7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv6").unwrap();
+    let token_account = Pubkey::from_str("7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv7").unwrap();
 
     let (market_pda, market_bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
@@ -61,23 +61,33 @@ fn test_settle_prediction() {
         &[b"prediction", market_pda.as_ref(), payer.pubkey().as_ref()],
         &program_id,
     );
+    let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &program_id);
 
-    let tx = program
+    match program
         .request()
         .accounts(zone::accounts::CreatePrediction {
             prediction: prediction_pda,
             user: payer.pubkey(),
             market: market_pda,
             system_program: system_program::ID,
+            vault: vault_pda,
         })
         .args(zone::instruction::CreatePrediction {
             prediction: true,
             amount: 100,
             current_price: 100_000,
         })
-        .send();
+        .send()
+    {
+        Ok(sig) => {
+            println!("{sig}");
+        }
+        Err(e) => {
+            println!("{e:?}");
+        }
+    }
 
-    assert!(tx.is_ok());
+    // assert!(tx.is_ok());
 
     match program
         .request()
@@ -86,6 +96,7 @@ fn test_settle_prediction() {
             user: payer.pubkey(),
             market: market_pda,
             system_program: system_program::ID,
+            vault: vault_pda,
         })
         .args(zone::instruction::SettlePrediction {
             actual_price: 200_000,

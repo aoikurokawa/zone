@@ -27,6 +27,7 @@ fn test_create_prediction() {
 
     let (market_pda, _bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
+    let (vault_pda, _bump) = Pubkey::find_program_address(&[b"vault"], &program_id);
 
     let tx = program
         .request()
@@ -67,6 +68,7 @@ fn test_create_prediction() {
             user: payer.pubkey(),
             market: market_pda,
             system_program: system_program::ID,
+            vault: vault_pda,
         })
         .args(zone::instruction::CreatePrediction {
             prediction: true,
