@@ -25,7 +25,7 @@ fn test_settle_prediction() {
     // CATWIFHAT
     let token_account = Pubkey::from_str("7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv7").unwrap();
 
-    let (market_pda, market_bump) =
+    let (market_pda, _market_bump) =
         Pubkey::find_program_address(&[b"market", token_account.as_ref()], &program_id);
 
     let tx = program
@@ -100,8 +100,6 @@ fn test_settle_prediction() {
         })
         .args(zone::instruction::SettlePrediction {
             actual_price: 200_000,
-            token_account,
-            bump: market_bump,
         })
         .send()
     {

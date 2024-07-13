@@ -89,8 +89,6 @@ pub mod zone {
     pub fn settle_prediction(
         ctx: Context<SettlePrediction>,
         actual_price: u64,
-        token_account: Pubkey,
-        bump: u8,
     ) -> anchor_lang::Result<()> {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
@@ -101,30 +99,46 @@ pub mod zone {
             let prediction = &mut ctx.accounts.prediction;
             let reward = (prediction.amount * market.payout_multiplier) / 100;
 
-            let (from, to) = if (actual_price > prediction.market_price && prediction.prediction)
+            if (actual_price > prediction.market_price && prediction.prediction)
                 || (actual_price < prediction.market_price && !prediction.prediction)
             {
-                (ctx.accounts.vault.key(), prediction.user)
+                **ctx
+                    .accounts
+                    .vault
+                    .to_account_info()
+                    .try_borrow_mut_lamports()? -= reward;
+                **ctx
+                    .accounts
+                    .user
+                    .to_account_info()
+                    .try_borrow_mut_lamports()? += reward;
             } else {
-                (prediction.user, ctx.accounts.vault.key())
-            };
-
-            let transfer_sol =
-                anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
-
-            anchor_lang::solana_program::program::invoke_signed(
-                &transfer_sol,
-                &[
-                    ctx.accounts.vault.to_account_info(),
-                    ctx.accounts.user.to_account_info(),
+                let cpi_context = CpiContext::new(
                     ctx.accounts.system_program.to_account_info(),
-                ],
-                &[&[
-                    crate::constants::MARKET_SEED,
-                    token_account.as_ref(),
-                    &[bump],
-                ]],
-            )?;
+                    system_program::Transfer {
+                        from: ctx.accounts.user.to_account_info(),
+                        to: ctx.accounts.vault.to_account_info(),
+                    },
+                );
+                system_program::transfer(cpi_context, reward)?;
+            }
+
+            // let transfer_sol =
+            //     anchor_lang::solana_program::system_instruction::transfer(&from, &to, reward);
+
+            // anchor_lang::solana_program::program::invoke_signed(
+            //     &transfer_sol,
+            //     &[
+            //         ctx.accounts.vault.to_account_info(),
+            //         ctx.accounts.user.to_account_info(),
+            //         ctx.accounts.system_program.to_account_info(),
+            //     ],
+            //     &[&[
+            //         crate::constants::MARKET_SEED,
+            //         token_account.as_ref(),
+            //         &[bump],
+            //     ]],
+            // )?;
         }
 
         Ok(())
@@ -169,7 +183,7 @@ pub struct StartMarket<'info> {
 #[derive(Accounts)]
 pub struct CreatePrediction<'info> {
     #[account(mut)]
-    vault: SystemAccount<'info>,
+    vault: Account<'info, Vault>,
 
     #[account(
         init,
@@ -192,7 +206,7 @@ pub struct CreatePrediction<'info> {
 #[derive(Accounts)]
 pub struct SettlePrediction<'info> {
     #[account(mut)]
-    vault: SystemAccount<'info>,
+    vault: Account<'info, Vault>,
 
     #[account(mut)]
     prediction: Account<'info, Prediction>,

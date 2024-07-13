@@ -32,8 +32,7 @@ fn test_initialize() {
             system_program: system_program::ID,
         })
         .args(zone::instruction::Initialize {})
-        .send()
-        .expect("");
+        .send();
 
-    println!("Your transaction signature {}", tx);
+    assert!(tx.is_ok());
 }
