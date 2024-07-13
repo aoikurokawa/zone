@@ -53,6 +53,7 @@ pub mod zone {
         market.authority = ctx.accounts.authority.key();
         market.token_account = token_account;
         market.payout_multiplier = payout_multiplier;
+        market.started = false;
 
         Ok(())
     }
@@ -63,10 +64,11 @@ pub mod zone {
         let market = &mut ctx.accounts.market;
         let clock = Clock::get()?;
 
-        if market.start != 0 {
+        if market.started {
             return Err(ZoneErrorCode::AlreadyStarted.into());
         }
 
+        market.started = true;
         market.start = clock.unix_timestamp;
         market.end = end;
 
@@ -231,6 +233,7 @@ pub struct Vault {}
 pub struct Market {
     authority: Pubkey,
     token_account: Pubkey,
+    started: bool,
     start: i64,
     end: i64,
     payout_multiplier: u64, // Multiplier for payout (e.g., 200 for 2x)
